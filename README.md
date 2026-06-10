@@ -69,6 +69,28 @@ safety_ack=USER_EXPLICITLY_REQUESTED_THIS
 
 Hermes should only pass that value when the user explicitly asks to edit or delete that exact message in the current conversation.
 
+### Why this can be unsafe
+
+This plugin gives an AI agent real control over visible WhatsApp history from the connected bot account. That is powerful, but it means a misconfigured, compromised, or poorly instructed agent could potentially:
+
+- send something the user did not intend, then edit it after the fact
+- delete a message to hide evidence of a mistake or unwanted action
+- clean up context in a group thread in a way that changes what other people can see
+- react to messages in ways that imply approval or agreement
+- star sensitive messages on the bot account for later retrieval
+
+The safety acknowledgement is a guardrail, not a cryptographic permission system. Any agent that has this tool in its available tool list and decides to pass the acknowledgement string can technically attempt the action. Treat this plugin like a moderation/admin tool: only enable it for agents and chats where you trust the model, prompt, runtime, and operators.
+
+Recommended guardrails:
+
+- keep edit/delete disabled or unavailable unless you actually need them
+- require explicit user wording such as "edit that message" or "delete that for everyone"
+- log every edit/delete action with `chat_id`, `message_id`, timestamp, and requesting user
+- prefer corrected follow-up messages over editing history
+- never allow autonomous/background jobs to edit or delete without human approval
+- use a dedicated bot WhatsApp account, not a personal account
+- test in a private chat before using in production groups
+
 Important limits:
 
 - delete-for-everyone can fail due to WhatsApp message age/type/permission limits
