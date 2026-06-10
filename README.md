@@ -109,10 +109,40 @@ Important limits:
 Paste this to Hermes:
 
 ```text
-Install Pulse Labs WhatsApp++ for Hermes from https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes, copy the plugin into my active Hermes profile, patch the bundled WhatsApp bridge with the repo installer, restart only the WhatsApp bridge if needed, and verify with py_compile, node --check, hermes plugins list, and safe /delete /react /star endpoint checks.
+Install Pulse Labs WhatsApp++ for Hermes from https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes as a pip/uv Hermes plugin into the same Python environment Hermes uses, run the package installer with --enable to patch the bundled WhatsApp bridge, restart only the WhatsApp bridge if needed, and verify with py_compile, node --check, hermes plugins list, and safe /delete /react /star endpoint checks.
 ```
 
-### Manual install
+### uv / pip plugin install
+
+Install into the Python environment that runs Hermes. On Hermes Desktop for Windows, that is often:
+
+```bash
+HERMES_PY="C:/Users/you/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+```
+
+Install from GitLab with uv:
+
+```bash
+uv pip install --python "$HERMES_PY" "git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git"
+```
+
+Or with pip:
+
+```bash
+"$HERMES_PY" -m pip install "git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git"
+```
+
+Patch the local WhatsApp bridge, write the tiny Hermes CLI visibility shim, and enable the plugin in Hermes config:
+
+```bash
+"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
+```
+
+The plugin is registered as a pip entry point named `whatsapp-plusplus`. The installer also writes a small `~/.hermes/plugins/whatsapp-plusplus` shim so current `hermes plugins list/enable` commands can see it.
+
+Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
+
+### Source checkout install
 
 Clone the repo:
 
@@ -121,18 +151,17 @@ git clone https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git
 cd whatsapp-plusplus-hermes
 ```
 
-Run the installer with the Python that can access your Hermes files:
+Install/edit locally into Hermes' Python environment:
 
 ```bash
-python scripts/install.py
+uv pip install --python "$HERMES_PY" -e .
+"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
 ```
-
-Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live.
 
 ### Custom Hermes home or bridge path
 
 ```bash
-python scripts/install.py --hermes-home "C:/Users/you/AppData/Local/hermes" --bridge "C:/Users/you/AppData/Local/hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js"
+"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --hermes-home "C:/Users/you/AppData/Local/hermes" --bridge "C:/Users/you/AppData/Local/hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js" --enable
 ```
 
 ### Different bridge URL
@@ -195,9 +224,10 @@ Star a message locally:
 After install:
 
 ```bash
-python -m py_compile ~/.hermes/plugins/whatsapp_plusplus/*.py
+"$HERMES_PY" -m py_compile -q src/pulse_labs_whatsapp_plusplus_hermes/*.py  # source checkout only
+"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --help
 node --check ~/.hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js
-hermes plugins list
+hermes plugins list --plain --no-bundled | grep whatsapp-plusplus
 ```
 
 Bridge endpoint checks should return HTTP 400 for missing required fields, not 404:
@@ -249,10 +279,12 @@ sock.chatModify({ star: { messages: [{ id: messageId, fromMe }], star } }, chatI
 ## Repo layout
 
 ```text
-plugin/whatsapp_plusplus/   Hermes plugin files
-scripts/install.py          installer that copies plugin files and patches bridge.js
-README.md                   public docs
-LICENSE                     MIT license
+src/pulse_labs_whatsapp_plusplus_hermes/  pip-installable Hermes plugin package + installer
+plugin/whatsapp_plusplus/                  directory-plugin copy for manual installs/reference
+scripts/install.py                         source-checkout wrapper around the package installer
+pyproject.toml                             uv/pip package metadata and Hermes entry point
+README.md                                  public docs
+LICENSE                                    MIT license
 ```
 
 ## License

@@ -1,0 +1,5 @@
+name: whatsapp-plusplus
+version: 0.1.0
+description: Local WhatsApp++ controls for editing, deleting, reacting to, and starring WhatsApp messages through the Hermes Baileys bridge.
+provides_tools:
+  - whatsapp_plusplus

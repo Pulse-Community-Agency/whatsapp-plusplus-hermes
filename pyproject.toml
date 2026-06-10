@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pulse-labs-whatsapp-plusplus-hermes"
+version = "0.2.0"
+description = "Pulse Labs WhatsApp++ plugin for Hermes Agent: edit, delete, react, and star WhatsApp messages through the local Baileys bridge."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Pulse Labs" }]
+keywords = ["hermes-agent", "whatsapp", "baileys", "plugin", "messaging"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Communications :: Chat",
+]
+dependencies = ["PyYAML>=6.0"]
+
+[project.urls]
+Homepage = "https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes"
+Repository = "https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes"
+Issues = "https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes/-/issues"
+
+[project.scripts]
+whatsapp-plusplus-hermes-install = "pulse_labs_whatsapp_plusplus_hermes.installer:main"
+
+[project.entry-points."hermes_agent.plugins"]
+whatsapp-plusplus = "pulse_labs_whatsapp_plusplus_hermes"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pulse_labs_whatsapp_plusplus_hermes"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/",
+  "plugin/",
+  "scripts/",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+]
