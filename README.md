@@ -100,6 +100,13 @@ Important limits:
 - starring is local to the connected WhatsApp bot account
 - the tool needs a real `chat_id` and `message_id`; do not guess
 
+
+## Is this a skills.sh skill?
+
+Not really. This repository is primarily a Hermes plugin plus a local WhatsApp bridge patch. It can include instructions that an agent can follow, but installing it as a generic agent skill does not automatically enable the `whatsapp_plusplus` Hermes tool. The real install path is the plugin/bridge installer in this repo.
+
+Use skills.sh for procedural skills like the Pulse Labs Adobe Illustrator logo designer skill. Use this repo when you specifically want the Hermes WhatsApp++ plugin installed or rebuilt.
+
 ## Install
 
 ### One-line agent prompt: install this version
