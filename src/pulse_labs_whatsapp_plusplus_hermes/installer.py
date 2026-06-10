@@ -178,6 +178,31 @@ __all__ = ["register"]
     return plugin_dir
 
 
+
+def archive_legacy_directory(hermes_home: Path) -> Path | None:
+    """Move the old copied directory-plugin aside during package migration."""
+    legacy = hermes_home / "plugins" / LEGACY_PLUGIN_NAME
+    if not legacy.exists():
+        return None
+    manifest = legacy / "plugin.yaml"
+    init_file = legacy / "__init__.py"
+    fingerprint = ""
+    for path in (manifest, init_file):
+        if path.exists():
+            fingerprint += path.read_text(encoding="utf-8", errors="ignore")[:4000]
+    if "whatsapp-plusplus" not in fingerprint and "WhatsApp++" not in fingerprint:
+        raise RuntimeError(f"Refusing to archive unrecognized legacy plugin directory: {legacy}")
+    backup_dir = hermes_home / "plugin_backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    base = backup_dir / f"{LEGACY_PLUGIN_NAME}.legacy.bak"
+    target = base
+    i = 1
+    while target.exists():
+        target = backup_dir / f"{LEGACY_PLUGIN_NAME}.legacy.bak.{i}"
+        i += 1
+    shutil.move(str(legacy), str(target))
+    return target
+
 def enable_plugin(config_path: Path) -> bool:
     try:
         import yaml
@@ -219,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--enable", action="store_true", help="Add whatsapp-plusplus to plugins.enabled")
     parser.add_argument("--no-patch", action="store_true", help="Only enable/write shim; do not patch bridge.js")
     parser.add_argument("--no-shim", action="store_true", help="Do not write the user-plugin CLI visibility shim")
+    parser.add_argument("--keep-legacy-dir", action="store_true", help="Do not archive an old ~/.hermes/plugins/whatsapp_plusplus directory")
     args = parser.parse_args(argv)
 
     hermes_home = args.hermes_home.expanduser().resolve()
@@ -234,6 +260,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_shim:
         shim = write_cli_shim(hermes_home)
         print(f"Wrote Hermes CLI visibility shim: {shim}")
+
+    if not args.keep_legacy_dir:
+        archived = archive_legacy_directory(hermes_home)
+        if archived is not None:
+            print(f"Archived legacy directory plugin: {archived}")
 
     if args.enable:
         changed = enable_plugin(config)

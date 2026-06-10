@@ -138,7 +138,7 @@ Patch the local WhatsApp bridge, write the tiny Hermes CLI visibility shim, and 
 "$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
 ```
 
-The plugin is registered as a pip entry point named `whatsapp-plusplus`. The installer also writes a small `~/.hermes/plugins/whatsapp-plusplus` shim so current `hermes plugins list/enable` commands can see it.
+The plugin is registered as a pip entry point named `whatsapp-plusplus`. The installer also writes a small `~/.hermes/plugins/whatsapp-plusplus` shim so current `hermes plugins list/enable` commands can see it. If it finds the older copied `~/.hermes/plugins/whatsapp_plusplus` directory-plugin, it archives that directory under `~/.hermes/plugin_backups/` to avoid duplicate plugin entries; pass `--keep-legacy-dir` to keep it.
 
 Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
 
