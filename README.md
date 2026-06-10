@@ -69,7 +69,7 @@ safety_ack=USER_EXPLICITLY_REQUESTED_THIS
 
 Hermes should only pass that value when the user explicitly asks to edit or delete that exact message in the current conversation.
 
-### Why this can be unsafe
+### Safety & Security Disclaimer
 
 This plugin gives an AI agent real control over visible WhatsApp history from the connected bot account. That is powerful, but it means a misconfigured, compromised, or poorly instructed agent could potentially:
 
