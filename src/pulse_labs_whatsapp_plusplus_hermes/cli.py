@@ -12,39 +12,55 @@ from . import installer
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="wpp-hermes",
-        description="Install and manage WhatsApp++ for Hermes Agent.",
+        description="Install, verify, and manage WhatsApp++ for Hermes Agent.",
     )
+    parser.add_argument("--version", action="version", version=f"wpp-hermes {installer.PACKAGE_VERSION}")
     subparsers = parser.add_subparsers(dest="command")
 
-    install = subparsers.add_parser(
-        "install",
-        help="Install WhatsApp++ into Hermes, patch the WhatsApp bridge, write the plugin shim, and enable it.",
-        add_help=False,
-    )
-    install.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
-
-    patch_bridge = subparsers.add_parser(
-        "patch-bridge",
-        help="Patch only the bundled WhatsApp bridge endpoints.",
-        add_help=False,
-    )
-    patch_bridge.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
-
-    enable = subparsers.add_parser(
-        "enable",
-        help="Write the Hermes plugin shim and enable the plugin without patching the bridge.",
-        add_help=False,
-    )
-    enable.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
-
-    installer_help = subparsers.add_parser(
-        "installer-help",
-        help="Show the low-level installer flags.",
-        add_help=False,
-    )
-    installer_help.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+    for name, help_text in (
+        ("install", "Install WhatsApp++ into Hermes, patch the WhatsApp bridge, write the plugin shim, and enable it."),
+        ("patch-bridge", "Patch only the bundled WhatsApp bridge endpoints."),
+        ("enable", "Write the Hermes plugin shim and enable the plugin without patching the bridge."),
+        ("doctor", "Show detected Hermes/WhatsApp++ paths and installation status."),
+        ("verify", "Verify an existing WhatsApp++ install without mutating files."),
+        ("installer-help", "Show the low-level installer flags."),
+    ):
+        sub = subparsers.add_parser(name, help=help_text, add_help=False)
+        sub.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 
     return parser
+
+
+def install_help() -> str:
+    return f"""usage: wpp-hermes install [options]
+
+Install WhatsApp++ into Hermes, patch the bundled WhatsApp/Baileys bridge,
+write the Hermes CLI visibility shim, and enable the plugin.
+
+The clean public install command is:
+
+  uvx wpp-hermes install
+
+Common options:
+  --hermes-home PATH      Hermes home to install into.
+                          Windows Desktop usually: C:/Users/<you>/AppData/Local/hermes
+                          macOS app-style installs: ~/Library/Application Support/hermes
+                          macOS/Linux CLI usually: ~/.hermes
+  --hermes-python PATH    Python executable used by Hermes. Use this if auto-detection fails.
+  --bridge PATH           Path to scripts/whatsapp-bridge/bridge.js.
+  --config PATH           Path to Hermes config.yaml.
+  --package-spec SPEC     Package spec installed into Hermes Python.
+                          Default: {installer.DEFAULT_PACKAGE_SPEC}
+  --keep-legacy-dir       Do not archive an old ~/.hermes/plugins/whatsapp_plusplus directory.
+  --no-patch              Install/enable without patching bridge.js.
+  --no-shim               Do not write ~/.hermes/plugins/whatsapp-plusplus shim.
+
+After install, restart Hermes Gateway/Desktop or start a fresh Hermes session.
+
+Diagnostics:
+  wpp-hermes doctor       Show detected paths and status.
+  wpp-hermes verify       Fail if plugin/shim/config/bridge checks do not pass.
+"""
 
 
 def _strip_separator(args: Sequence[str]) -> list[str]:
@@ -52,6 +68,10 @@ def _strip_separator(args: Sequence[str]) -> list[str]:
     if values and values[0] == "--":
         return values[1:]
     return values
+
+
+def _wants_help(args: Sequence[str]) -> bool:
+    return any(arg in {"-h", "--help"} for arg in args)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -71,16 +91,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     if raw_args[0] in {"-h", "--help"}:
         build_parser().print_help()
         return 0
+    if raw_args[0] in {"--version", "-V"}:
+        print(f"wpp-hermes {installer.PACKAGE_VERSION}")
+        return 0
 
     command = raw_args[0]
     rest = _strip_separator(raw_args[1:])
 
     if command == "install":
+        if _wants_help(rest):
+            print(install_help())
+            return 0
         return installer.main(["--bootstrap", *rest])
     if command == "patch-bridge":
         return installer.main(rest)
     if command == "enable":
         return installer.main(["--no-patch", "--enable", *rest])
+    if command == "doctor":
+        return installer.doctor_main(rest)
+    if command == "verify":
+        return installer.verify_main(rest)
     if command == "installer-help":
         return installer.main(["--help", *rest])
 

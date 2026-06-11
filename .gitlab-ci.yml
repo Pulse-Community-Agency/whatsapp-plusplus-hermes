@@ -28,7 +28,10 @@ lint-package:
     - uv build
     - WHEEL="$(ls dist/wpp_hermes-*.whl)"
     - env -u PYTHONPATH uvx --isolated --from "$WHEEL" wpp-hermes --help
+    - env -u PYTHONPATH uvx --isolated --from "$WHEEL" wpp-hermes --version
     - env -u PYTHONPATH uvx --isolated --from "$WHEEL" whatsapp-plusplus --help
+    - env -u PYTHONPATH uvx --isolated --from "$WHEEL" wpp-hermes install --help
+    - env -u PYTHONPATH uvx --isolated --from "$WHEEL" wpp-hermes doctor --hermes-home /tmp/wpp-hermes-empty-home
     - env -u PYTHONPATH uvx --isolated --from "$WHEEL" wpp-hermes-install --help
 
 build-package:

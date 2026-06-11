@@ -112,7 +112,7 @@ Important limits:
 Paste this to Hermes:
 
 ```text
-Install Pulse Labs WhatsApp++ for Hermes with `uvx wpp-hermes install`, which installs the pip package into Hermes Desktop's Python with uv pip install, patches the bundled WhatsApp bridge, writes the Hermes plugin shim, enables the plugin, restarts only the WhatsApp bridge if needed, and verifies with py_compile, node --check, hermes plugins list, and safe /delete /react /star endpoint checks.
+Install Pulse Labs WhatsApp++ for Hermes with `uvx wpp-hermes install`, then run `uvx wpp-hermes doctor` and `uvx wpp-hermes verify`. The installer puts the pip package into Hermes Desktop's Python with uv pip install, patches the bundled WhatsApp bridge, writes the Hermes plugin shim, and enables the plugin. Restart only the WhatsApp bridge or Hermes Gateway/Desktop session after install.
 ```
 
 ### Short install from PyPI
@@ -128,6 +128,18 @@ That one command installs the package into Hermes Desktop, patches the local Wha
 The public CLI names are `wpp-hermes` and `whatsapp-plusplus`. The Hermes plugin is still registered as a pip entry point named `whatsapp-plusplus`, and the Hermes tool is still named `whatsapp_plusplus`. The shim exists because current `hermes plugins list/enable` commands may only scan directory plugins. If the installer finds the older copied `~/.hermes/plugins/whatsapp_plusplus` directory-plugin, it archives that directory under `~/.hermes/plugin_backups/` to avoid duplicate plugin entries; pass `--keep-legacy-dir` to keep it.
 
 Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
+
+Useful follow-up commands:
+
+```bash
+uvx wpp-hermes --version
+uvx wpp-hermes install --help
+uvx wpp-hermes doctor
+uvx wpp-hermes verify
+```
+
+- `doctor` prints the detected Hermes home, Hermes Python, bridge path, config path, uv path, plugin enabled state, shim state, Hermes-Python entry point state, bridge endpoint state, and `node --check` result.
+- `verify` performs the same checks without mutating files and exits non-zero if the install does not look ready.
 
 ### Install from GitLab/source
 
@@ -146,6 +158,26 @@ HERMES_PY="C:/Users/you/AppData/Local/hermes/hermes-agent/venv/Scripts/python.ex
 uv pip install --python "$HERMES_PY" wpp-hermes
 "$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
 ```
+
+On macOS app-style installs, the Hermes home may be:
+
+```bash
+HERMES_HOME="$HOME/Library/Application Support/hermes"
+```
+
+On macOS/Linux Hermes CLI installs, the Python path is usually:
+
+```bash
+HERMES_PY="$HOME/.hermes/hermes-agent/venv/bin/python"
+```
+
+If auto-detection fails, pass the path explicitly:
+
+```bash
+uvx wpp-hermes install --hermes-python "$HERMES_PY"
+```
+
+If `uv` is missing on a raw CLI/server environment, install it first from Astral's uv instructions, then rerun the installer. Hermes Desktop normally includes uv, but standalone macOS/Linux shells may not.
 
 ### Source checkout install
 
@@ -185,6 +217,8 @@ export WHATSAPP_PLUSPLUS_BRIDGE_URL=http://127.0.0.1:3000
 ```bash
 uvx wpp-hermes --help
 uvx wpp-hermes install --help
+uvx wpp-hermes doctor
+uvx wpp-hermes verify
 ```
 
 Maintainer releases are handled by GitLab CI/CD trusted publishing, not long-lived PyPI tokens. TestPyPI and PyPI each need their own trusted publisher configured for this GitLab project:
@@ -224,6 +258,8 @@ Final public PyPI verification:
 ```bash
 uvx wpp-hermes --help
 uvx wpp-hermes install --help
+uvx wpp-hermes doctor
+uvx wpp-hermes verify
 ```
 
 
@@ -310,12 +346,14 @@ uv build
 python3 -m venv .venv-test
 .venv-test/bin/python -m pip install dist/wpp_hermes-*.whl
 .venv-test/bin/wpp-hermes --help
+.venv-test/bin/wpp-hermes --version
 .venv-test/bin/wpp-hermes installer-help
+.venv-test/bin/wpp-hermes doctor --hermes-home /tmp/wpp-hermes-empty-home
 uvx --from dist/wpp_hermes-*.whl wpp-hermes --help
 uvx --from dist/wpp_hermes-*.whl wpp-hermes install --help
 ```
 
-For full installer validation on macOS, use a temporary Hermes home and a throwaway bridge file before patching a real Hermes Desktop install.
+For full installer validation on macOS, use a temporary Hermes home and a throwaway bridge file before patching a real Hermes Desktop install. The remote Intel and Apple Silicon validation for this package used that safe flow: it verified wheel install, CLI behavior, shim/config writes, throwaway bridge patching, and `node --check`; it did not mutate a real Hermes Desktop profile unless you explicitly run `uvx wpp-hermes install` against that Desktop install.
 
 ## Bridge endpoint details
 

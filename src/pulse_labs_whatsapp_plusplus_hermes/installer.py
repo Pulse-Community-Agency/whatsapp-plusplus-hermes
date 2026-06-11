@@ -10,15 +10,17 @@ part: patching the bundled Baileys WhatsApp bridge with /delete, /react, and
 from __future__ import annotations
 
 import argparse
+import importlib.metadata as metadata
 import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
+
 PLUGIN_NAME = "whatsapp-plusplus"
 LEGACY_PLUGIN_NAME = "whatsapp_plusplus"
-PACKAGE_VERSION = "0.3.1"
+PACKAGE_VERSION = "0.4.0"
 SHIM_MARKER = "Pulse Labs WhatsApp++ pip shim"
 DEFAULT_PACKAGE_SPEC = "wpp-hermes"
 
@@ -108,9 +110,14 @@ def default_hermes_home() -> Path:
     if os.environ.get("HERMES_HOME"):
         return Path(os.environ["HERMES_HOME"]).expanduser()
     home = Path.home()
-    local = home / "AppData" / "Local" / "hermes"
-    if local.exists():
-        return local
+    candidates = [
+        home / "AppData" / "Local" / "hermes",  # Windows Hermes Desktop
+        home / "Library" / "Application Support" / "hermes",  # macOS app-style installs
+        home / ".hermes",  # Hermes CLI / Linux / fallback
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
     return home / ".hermes"
 
 
@@ -125,17 +132,188 @@ def default_hermes_python(hermes_home: Path) -> Path:
     return hermes_home / "hermes-agent" / "venv" / "bin" / "python"
 
 
+def bridge_patch_status(bridge: Path) -> dict[str, bool]:
+    if not bridge.exists():
+        return {"exists": False, "helper": False, "delete": False, "react": False, "star": False}
+    text = bridge.read_text(encoding="utf-8", errors="ignore")
+    return {
+        "exists": True,
+        "helper": "function buildMessageKey(" in text,
+        "delete": "app.post('/delete'" in text,
+        "react": "app.post('/react'" in text,
+        "star": "app.post('/star'" in text,
+    }
+
+
+def is_plugin_enabled(config_path: Path) -> bool:
+    if not config_path.exists():
+        return False
+    try:
+        import yaml
+
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(loaded, dict):
+        return False
+    plugins = loaded.get("plugins")
+    if not isinstance(plugins, dict):
+        return False
+    enabled = plugins.get("enabled")
+    return isinstance(enabled, list) and PLUGIN_NAME in enabled
+
+
+def entry_point_installed(hermes_python: Path | None = None) -> bool:
+    if hermes_python is not None:
+        if not hermes_python.exists():
+            return False
+        code = (
+            "import importlib.metadata as md; "
+            "eps=md.entry_points().select(group='hermes_agent.plugins'); "
+            "raise SystemExit(0 if any(ep.name=='whatsapp-plusplus' and ep.value=='pulse_labs_whatsapp_plusplus_hermes' for ep in eps) else 1)"
+        )
+        try:
+            return subprocess.run([str(hermes_python), "-c", code], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        except Exception:
+            return False
+    try:
+        entries = metadata.entry_points().select(group="hermes_agent.plugins")
+    except Exception:
+        return False
+    return any(ep.name == PLUGIN_NAME and ep.value == "pulse_labs_whatsapp_plusplus_hermes" for ep in entries)
+
+
+def run_node_check(bridge: Path) -> tuple[bool | None, str]:
+    node = shutil.which("node")
+    if not node:
+        return None, "node not found; skipped bridge syntax check"
+    if not bridge.exists():
+        return False, "bridge.js not found"
+    result = subprocess.run([node, "--check", str(bridge)], capture_output=True, text=True)
+    output = (result.stdout + result.stderr).strip()
+    return result.returncode == 0, output or "node --check passed"
+
+
+def collect_status(
+    hermes_home: Path | None = None,
+    bridge: Path | None = None,
+    config: Path | None = None,
+    hermes_python: Path | None = None,
+) -> dict[str, Any]:
+    home = (hermes_home or default_hermes_home()).expanduser().resolve()
+    py = (hermes_python or default_hermes_python(home)).expanduser()
+    br = (bridge or (home / "hermes-agent" / "scripts" / "whatsapp-bridge" / "bridge.js")).expanduser()
+    cfg = (config or default_config_path(home)).expanduser()
+    patch = bridge_patch_status(br)
+    node_ok, node_message = run_node_check(br) if patch["exists"] else (False, "bridge.js not found")
+    return {
+        "version": PACKAGE_VERSION,
+        "hermes_home": home,
+        "hermes_home_exists": home.exists(),
+        "hermes_python": py,
+        "hermes_python_exists": py.exists(),
+        "bridge": br,
+        "bridge_patch": patch,
+        "config": cfg,
+        "config_exists": cfg.exists(),
+        "plugin_enabled": is_plugin_enabled(cfg),
+        "shim_dir": home / "plugins" / PLUGIN_NAME,
+        "shim_exists": (home / "plugins" / PLUGIN_NAME / "__init__.py").exists(),
+        "entry_point_installed": entry_point_installed(py),
+        "uv": shutil.which("uv"),
+        "node_check": node_ok,
+        "node_message": node_message,
+    }
+
+
+def print_status(status: dict[str, Any]) -> None:
+    patch = status["bridge_patch"]
+    print(f"WhatsApp++ for Hermes v{status['version']}")
+    print(f"Hermes home:        {status['hermes_home']} {'✓' if status['hermes_home_exists'] else '✗'}")
+    print(f"Hermes Python:      {status['hermes_python']} {'✓' if status['hermes_python_exists'] else '✗'}")
+    print(f"uv on PATH:         {status['uv'] or 'not found'} {'✓' if status['uv'] else '✗'}")
+    print(f"Config:             {status['config']} {'✓' if status['config_exists'] else '✗'}")
+    print(f"Plugin enabled:     {'yes ✓' if status['plugin_enabled'] else 'no ✗'}")
+    print(f"Shim:               {status['shim_dir']} {'✓' if status['shim_exists'] else '✗'}")
+    print(f"Pip entry point:    {'installed ✓' if status['entry_point_installed'] else 'not visible ✗'}")
+    print(f"Bridge:             {status['bridge']} {'✓' if patch['exists'] else '✗'}")
+    print(
+        "Bridge endpoints:   "
+        f"helper={'✓' if patch['helper'] else '✗'} "
+        f"delete={'✓' if patch['delete'] else '✗'} "
+        f"react={'✓' if patch['react'] else '✗'} "
+        f"star={'✓' if patch['star'] else '✗'}"
+    )
+    node_ok = status["node_check"]
+    node_icon = "✓" if node_ok is True else ("-" if node_ok is None else "✗")
+    print(f"node --check:       {node_icon} {status['node_message']}")
+
+
+def doctor_main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Show detected Hermes/WhatsApp++ install paths and status")
+    parser.add_argument("--hermes-home", type=Path, default=None, help="Hermes home to inspect")
+    parser.add_argument("--bridge", type=Path, default=None, help="Path to scripts/whatsapp-bridge/bridge.js")
+    parser.add_argument("--config", type=Path, default=None, help="Path to Hermes config.yaml")
+    parser.add_argument("--hermes-python", type=Path, default=None, help="Path to Hermes' Python executable")
+    args = parser.parse_args(argv)
+    status = collect_status(args.hermes_home, args.bridge, args.config, args.hermes_python)
+    print_status(status)
+    if not status["uv"]:
+        print("\nuv was not found. Install uv first, for example: https://docs.astral.sh/uv/getting-started/installation/")
+    if not status["hermes_python_exists"]:
+        print("\nHermes Python was not found. If this is Hermes Desktop, pass --hermes-home or --hermes-python explicitly.")
+    return 0
+
+
+def verify_main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Verify a WhatsApp++ install without mutating files")
+    parser.add_argument("--hermes-home", type=Path, default=None, help="Hermes home to inspect")
+    parser.add_argument("--bridge", type=Path, default=None, help="Path to scripts/whatsapp-bridge/bridge.js")
+    parser.add_argument("--config", type=Path, default=None, help="Path to Hermes config.yaml")
+    parser.add_argument("--hermes-python", type=Path, default=None, help="Path to Hermes' Python executable")
+    args = parser.parse_args(argv)
+    status = collect_status(args.hermes_home, args.bridge, args.config, args.hermes_python)
+    print_status(status)
+    patch = status["bridge_patch"]
+    required = {
+        "Hermes Python exists": status["hermes_python_exists"],
+        "uv available": bool(status["uv"]),
+        "plugin enabled": status["plugin_enabled"],
+        "shim exists": status["shim_exists"],
+        "pip entry point installed": status["entry_point_installed"],
+        "bridge patched": patch["exists"] and patch["helper"] and patch["delete"] and patch["react"] and patch["star"],
+        "bridge syntax ok": status["node_check"] is not False,
+    }
+    failed = [name for name, ok in required.items() if not ok]
+    if failed:
+        print("\nVerify failed:")
+        for name in failed:
+            print(f"  - {name}")
+        print("\nRun `wpp-hermes doctor` for paths, or reinstall with `uvx wpp-hermes install`.")
+        return 1
+    print("\nVerify passed: WhatsApp++ appears installed and patched.")
+    return 0
+
+
 def install_into_hermes_python(hermes_python: Path, package_spec: str) -> None:
     """Install this pip package into the Python environment that runs Hermes."""
     python_path = hermes_python.expanduser().resolve()
     if not python_path.exists():
         raise FileNotFoundError(
-            f"Hermes Python not found: {python_path}\n"
-            "Pass --hermes-python, or use the manual uv pip install command from the README."
+            f"Hermes Python not found: {python_path}\n\n"
+            "WhatsApp++ must be installed into the same Python environment that runs Hermes.\n"
+            "If Hermes Desktop is installed somewhere custom, pass:\n"
+            "  wpp-hermes install --hermes-home <path-to-hermes-home>\n"
+            "or:\n"
+            "  wpp-hermes install --hermes-python <path-to-python>\n"
         )
     uv = shutil.which("uv")
     if not uv:
-        raise RuntimeError("uv was not found on PATH. Hermes Desktop normally includes uv.")
+        raise RuntimeError(
+            "uv was not found on PATH. Install uv, then rerun `uvx wpp-hermes install`.\n"
+            "Install instructions: https://docs.astral.sh/uv/getting-started/installation/\n"
+            "Hermes Desktop normally bundles uv, but raw CLI/server environments may need it installed separately."
+        )
     subprocess.run([uv, "pip", "install", "--python", str(python_path), package_spec], check=True)
 
 
@@ -280,13 +458,18 @@ def main(argv: list[str] | None = None) -> int:
         args.install_into_hermes = True
         args.enable = True
 
-    if args.install_into_hermes:
-        hermes_python = args.hermes_python or default_hermes_python(hermes_home)
-        install_into_hermes_python(hermes_python, args.package_spec)
-        print(f"Installed package into Hermes Python: {hermes_python}")
-
     bridge = args.bridge or (hermes_home / "hermes-agent" / "scripts" / "whatsapp-bridge" / "bridge.js")
     config = args.config or default_config_path(hermes_home)
+    hermes_python = args.hermes_python or default_hermes_python(hermes_home)
+
+    print(f"Hermes home:   {hermes_home}")
+    print(f"Hermes Python: {hermes_python}")
+    print(f"Bridge:        {bridge}")
+    print(f"Config:        {config}")
+
+    if args.install_into_hermes:
+        install_into_hermes_python(hermes_python, args.package_spec)
+        print(f"Installed package into Hermes Python: {hermes_python}")
 
     if not args.no_patch:
         if not bridge.exists():
