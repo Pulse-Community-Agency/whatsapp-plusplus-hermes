@@ -30,7 +30,10 @@ This is not a WhatsApp automation platform by itself. It is a small Hermes plugi
 There are two pieces:
 
 1. Hermes plugin
-   - installs under `~/.hermes/plugins/whatsapp_plusplus/`
+   - installs as the pip package `wpp-hermes`
+   - exposes public CLI commands named `wpp-hermes` and `whatsapp-plusplus`
+   - exposes a Hermes plugin entry point named `whatsapp-plusplus`
+   - optionally writes a tiny `~/.hermes/plugins/whatsapp-plusplus/` CLI visibility shim
    - registers one tool: `whatsapp_plusplus`
    - sends local HTTP requests to the WhatsApp bridge, defaulting to `http://127.0.0.1:3000`
 
@@ -109,38 +112,38 @@ Important limits:
 Paste this to Hermes:
 
 ```text
-Install Pulse Labs WhatsApp++ for Hermes from https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes as a pip/uv Hermes plugin into the same Python environment Hermes uses, run the package installer with --enable to patch the bundled WhatsApp bridge, restart only the WhatsApp bridge if needed, and verify with py_compile, node --check, hermes plugins list, and safe /delete /react /star endpoint checks.
+Install Pulse Labs WhatsApp++ for Hermes with `uvx wpp-hermes install`, which installs the pip package into Hermes Desktop's Python with uv pip install, patches the bundled WhatsApp bridge, writes the Hermes plugin shim, enables the plugin, restarts only the WhatsApp bridge if needed, and verifies with py_compile, node --check, hermes plugins list, and safe /delete /react /star endpoint checks.
 ```
 
-### uv / pip plugin install
+### Short install from PyPI
 
-Install into the Python environment that runs Hermes. On Hermes Desktop for Windows, that is often:
+WhatsApp++ is distributed as the PyPI package `wpp-hermes`. Hermes Desktop includes `uv`, so the short install uses `uvx` to run a temporary bootstrap CLI. The bootstrap then uses `uv pip install --python <Hermes Python> wpp-hermes` so the actual Hermes plugin lands in the same Python environment that runs Hermes.
+
+```bash
+uvx wpp-hermes install
+```
+
+That one command installs the package into Hermes Desktop, patches the local WhatsApp bridge, writes a small `~/.hermes/plugins/whatsapp-plusplus` Hermes CLI visibility shim, and enables the plugin in Hermes config.
+
+The public CLI names are `wpp-hermes` and `whatsapp-plusplus`. The Hermes plugin is still registered as a pip entry point named `whatsapp-plusplus`, and the Hermes tool is still named `whatsapp_plusplus`. The shim exists because current `hermes plugins list/enable` commands may only scan directory plugins. If the installer finds the older copied `~/.hermes/plugins/whatsapp_plusplus` directory-plugin, it archives that directory under `~/.hermes/plugin_backups/` to avoid duplicate plugin entries; pass `--keep-legacy-dir` to keep it.
+
+Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
+
+### Install from GitLab before a PyPI release
+
+```bash
+uvx --from git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git wpp-hermes install --package-spec git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git
+```
+
+### Manual install
+
+If you prefer to see each step, this is what `wpp-hermes install` does:
 
 ```bash
 HERMES_PY="C:/Users/you/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
-```
-
-Install from GitLab with uv:
-
-```bash
-uv pip install --python "$HERMES_PY" "git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git"
-```
-
-Or with pip:
-
-```bash
-"$HERMES_PY" -m pip install "git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git"
-```
-
-Patch the local WhatsApp bridge, write the tiny Hermes CLI visibility shim, and enable the plugin in Hermes config:
-
-```bash
+uv pip install --python "$HERMES_PY" wpp-hermes
 "$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
 ```
-
-The plugin is registered as a pip entry point named `whatsapp-plusplus`. The installer also writes a small `~/.hermes/plugins/whatsapp-plusplus` shim so current `hermes plugins list/enable` commands can see it. If it finds the older copied `~/.hermes/plugins/whatsapp_plusplus` directory-plugin, it archives that directory under `~/.hermes/plugin_backups/` to avoid duplicate plugin entries; pass `--keep-legacy-dir` to keep it.
-
-Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
 
 ### Source checkout install
 
@@ -151,17 +154,18 @@ git clone https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git
 cd whatsapp-plusplus-hermes
 ```
 
-Install/edit locally into Hermes' Python environment:
+Install/edit the local checkout into Hermes' Python environment:
 
 ```bash
+HERMES_PY="C:/Users/you/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
 uv pip install --python "$HERMES_PY" -e .
-"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --enable
+"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.cli enable
 ```
 
 ### Custom Hermes home or bridge path
 
 ```bash
-"$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --hermes-home "C:/Users/you/AppData/Local/hermes" --bridge "C:/Users/you/AppData/Local/hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js" --enable
+wpp-hermes install --hermes-home "C:/Users/you/AppData/Local/hermes" --bridge "C:/Users/you/AppData/Local/hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js"
 ```
 
 ### Different bridge URL
@@ -172,7 +176,33 @@ The plugin defaults to `http://127.0.0.1:3000`. Override it with:
 export WHATSAPP_PLUSPLUS_BRIDGE_URL=http://127.0.0.1:3000
 ```
 
+## Publishing
+
+Build and test locally first:
+
+```bash
+uv build
+uvx --from dist/wpp_hermes-0.3.0-py3-none-any.whl wpp-hermes --help
+```
+
+Publish to TestPyPI. The upload endpoint intentionally uses `/legacy/`; that is still the current PyPI/TestPyPI upload API used by uv and twine. The install/index endpoint is `/simple/`.
+
+```bash
+uv publish --publish-url https://test.pypi.org/legacy/ --token "$TEST_PYPI_TOKEN"
+uvx --index https://test.pypi.org/simple/ --from wpp-hermes wpp-hermes --help
+```
+
+After TestPyPI works, publish to real PyPI:
+
+```bash
+uv publish --token "$PYPI_TOKEN"
+uvx wpp-hermes --help
+```
+
+
 ## Rebuild from scratch
+
+For security-sensitive users who would rather have their local agent write the plugin and bridge patch from a prompt instead of installing prewritten package code, keep this option. Review the generated files before enabling edit/delete in any real chat.
 
 ### One-line agent prompt: rebuild from scratch
 
@@ -224,9 +254,9 @@ Star a message locally:
 After install:
 
 ```bash
-"$HERMES_PY" -m py_compile -q src/pulse_labs_whatsapp_plusplus_hermes/*.py  # source checkout only
+"$HERMES_PY" -m py_compile -q src/pulse_labs_whatsapp_plusplus_hermes/*.py scripts/install.py  # source checkout only
 "$HERMES_PY" -m pulse_labs_whatsapp_plusplus_hermes.installer --help
-node --check ~/.hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js
+node --check "$HOME/AppData/Local/hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js"
 hermes plugins list --plain --no-bundled | grep whatsapp-plusplus
 ```
 
