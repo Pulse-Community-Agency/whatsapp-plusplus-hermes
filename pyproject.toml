@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wpp-hermes"
-version = "0.4.0"
+version = "0.4.1"
 description = "WhatsApp++ for Hermes Agent: edit, delete, react, and star WhatsApp messages through the local Baileys bridge."
 readme = "README.md"
 requires-python = ">=3.10"

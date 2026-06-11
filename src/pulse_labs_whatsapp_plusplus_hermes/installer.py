@@ -20,7 +20,7 @@ from typing import Any
 
 PLUGIN_NAME = "whatsapp-plusplus"
 LEGACY_PLUGIN_NAME = "whatsapp_plusplus"
-PACKAGE_VERSION = "0.4.0"
+PACKAGE_VERSION = "0.4.1"
 SHIM_MARKER = "Pulse Labs WhatsApp++ pip shim"
 DEFAULT_PACKAGE_SPEC = "wpp-hermes"
 
@@ -115,6 +115,21 @@ def default_hermes_home() -> Path:
         home / "Library" / "Application Support" / "hermes",  # macOS app-style installs
         home / ".hermes",  # Hermes CLI / Linux / fallback
     ]
+
+    # Prefer a candidate that looks like a real Hermes runtime home. On macOS it
+    # is possible to have an app-support directory present while Hermes Desktop's
+    # active runtime lives in ~/.hermes; choosing the first merely-existing
+    # directory would make the clean `uvx wpp-hermes install` command target the
+    # wrong profile.
+    for candidate in candidates:
+        if (
+            (candidate / "hermes-agent" / "venv" / "Scripts" / "python.exe").exists()
+            or (candidate / "hermes-agent" / "venv" / "bin" / "python").exists()
+            or (candidate / "hermes-agent" / "scripts" / "whatsapp-bridge" / "bridge.js").exists()
+            or (candidate / "config.yaml").exists()
+        ):
+            return candidate
+
     for candidate in candidates:
         if candidate.exists():
             return candidate
