@@ -129,7 +129,9 @@ The public CLI names are `wpp-hermes` and `whatsapp-plusplus`. The Hermes plugin
 
 Then restart Hermes Gateway or restart only the WhatsApp bridge so the new bridge endpoints are live. Start a fresh Hermes session after enabling the plugin.
 
-### Install from GitLab before a PyPI release
+### Install from GitLab/source
+
+Use this when testing unreleased changes from the repository instead of the latest PyPI release:
 
 ```bash
 uvx --from git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git wpp-hermes install --package-spec git+https://gitlab.com/pulse-labs/whatsapp-plusplus-hermes.git
@@ -178,25 +180,50 @@ export WHATSAPP_PLUSPLUS_BRIDGE_URL=http://127.0.0.1:3000
 
 ## Publishing
 
-Build and test locally first:
+`wpp-hermes` is published on PyPI and supports the clean public install path:
 
 ```bash
-uv build
-uvx --from dist/wpp_hermes-0.3.0-py3-none-any.whl wpp-hermes --help
+uvx wpp-hermes --help
+uvx wpp-hermes install --help
 ```
 
-Publish to TestPyPI. The upload endpoint intentionally uses `/legacy/`; that is still the current PyPI/TestPyPI upload API used by uv and twine. The install/index endpoint is `/simple/`.
+Maintainer releases are handled by GitLab CI/CD trusted publishing, not long-lived PyPI tokens. TestPyPI and PyPI each need their own trusted publisher configured for this GitLab project:
+
+- Package/project name: `wpp-hermes`
+- Namespace: `pulse-labs`
+- Project/repository name: `whatsapp-plusplus-hermes`
+- Top-level pipeline file: `.gitlab-ci.yml`
+- TestPyPI environment: `testpypi`
+- PyPI environment: `pypi`
+
+Release sequence:
 
 ```bash
-uv publish --publish-url https://test.pypi.org/legacy/ --token "$TEST_PYPI_TOKEN"
+git checkout main
+git pull --ff-only origin main
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+GitLab creates manual publish jobs for version tags. Run `publish-testpypi` first, verify the TestPyPI package, then run `publish-pypi`.
+
+TestPyPI verification:
+
+```bash
 uvx --index https://test.pypi.org/simple/ --from wpp-hermes wpp-hermes --help
 ```
 
-After TestPyPI works, publish to real PyPI:
+If that fails only because dependencies such as `PyYAML>=6.0` are not available on TestPyPI, verify with PyPI as the dependency fallback:
 
 ```bash
-uv publish --token "$PYPI_TOKEN"
+uvx --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match --from wpp-hermes wpp-hermes --help
+```
+
+Final public PyPI verification:
+
+```bash
 uvx wpp-hermes --help
+uvx wpp-hermes install --help
 ```
 
 
