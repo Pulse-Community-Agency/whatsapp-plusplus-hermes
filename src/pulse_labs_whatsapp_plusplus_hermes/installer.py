@@ -18,7 +18,7 @@ from typing import Any
 
 PLUGIN_NAME = "whatsapp-plusplus"
 LEGACY_PLUGIN_NAME = "whatsapp_plusplus"
-PACKAGE_VERSION = "0.3.0"
+PACKAGE_VERSION = "0.3.1"
 SHIM_MARKER = "Pulse Labs WhatsApp++ pip shim"
 DEFAULT_PACKAGE_SPEC = "wpp-hermes"
 

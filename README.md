@@ -295,6 +295,28 @@ curl -i -X POST http://127.0.0.1:3000/react  -H 'Content-Type: application/json'
 curl -i -X POST http://127.0.0.1:3000/star   -H 'Content-Type: application/json' -d '{}'
 ```
 
+## macOS compatibility
+
+`wpp-hermes` is a pure-Python wheel plus a JavaScript bridge patch, so one package artifact works across macOS Intel and Apple Silicon. The package has been verified on:
+
+- macOS 15.7.3 Intel x86_64
+- macOS 15.7.7 Apple Silicon arm64
+
+The verified macOS checks are:
+
+```bash
+python3 -m py_compile src/pulse_labs_whatsapp_plusplus_hermes/*.py src/wpp_hermes_cli/*.py scripts/install.py
+uv build
+python3 -m venv .venv-test
+.venv-test/bin/python -m pip install dist/wpp_hermes-*.whl
+.venv-test/bin/wpp-hermes --help
+.venv-test/bin/wpp-hermes installer-help
+uvx --from dist/wpp_hermes-*.whl wpp-hermes --help
+uvx --from dist/wpp_hermes-*.whl wpp-hermes install --help
+```
+
+For full installer validation on macOS, use a temporary Hermes home and a throwaway bridge file before patching a real Hermes Desktop install.
+
 ## Bridge endpoint details
 
 `POST /delete`
