@@ -20,7 +20,7 @@ from typing import Any
 
 PLUGIN_NAME = "whatsapp-plusplus"
 LEGACY_PLUGIN_NAME = "whatsapp_plusplus"
-PACKAGE_VERSION = "0.4.1"
+PACKAGE_VERSION = "0.4.2"
 SHIM_MARKER = "Pulse Labs WhatsApp++ pip shim"
 DEFAULT_PACKAGE_SPEC = "wpp-hermes"
 
@@ -312,7 +312,10 @@ def verify_main(argv: list[str] | None = None) -> int:
 
 def install_into_hermes_python(hermes_python: Path, package_spec: str) -> None:
     """Install this pip package into the Python environment that runs Hermes."""
-    python_path = hermes_python.expanduser().resolve()
+    # Do not call resolve() here. macOS venv/bin/python is often a symlink to
+    # the base framework interpreter; resolving it makes `uv pip install
+    # --python ...` target the base Python instead of the Hermes venv.
+    python_path = hermes_python.expanduser().absolute()
     if not python_path.exists():
         raise FileNotFoundError(
             f"Hermes Python not found: {python_path}\n\n"
