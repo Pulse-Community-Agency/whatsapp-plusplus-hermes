@@ -12,12 +12,15 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
 PLUGIN_NAME = "whatsapp-plusplus"
 LEGACY_PLUGIN_NAME = "whatsapp_plusplus"
+PACKAGE_VERSION = "0.3.0"
 SHIM_MARKER = "Pulse Labs WhatsApp++ pip shim"
+DEFAULT_PACKAGE_SPEC = "wpp-hermes"
 
 HELPER = """
 function buildMessageKey({ chatId, messageId, fromMe = true, participant = undefined }) {
@@ -115,6 +118,27 @@ def default_config_path(hermes_home: Path) -> Path:
     return hermes_home / "config.yaml"
 
 
+def default_hermes_python(hermes_home: Path) -> Path:
+    windows_python = hermes_home / "hermes-agent" / "venv" / "Scripts" / "python.exe"
+    if windows_python.exists():
+        return windows_python
+    return hermes_home / "hermes-agent" / "venv" / "bin" / "python"
+
+
+def install_into_hermes_python(hermes_python: Path, package_spec: str) -> None:
+    """Install this pip package into the Python environment that runs Hermes."""
+    python_path = hermes_python.expanduser().resolve()
+    if not python_path.exists():
+        raise FileNotFoundError(
+            f"Hermes Python not found: {python_path}\n"
+            "Pass --hermes-python, or use the manual uv pip install command from the README."
+        )
+    uv = shutil.which("uv")
+    if not uv:
+        raise RuntimeError("uv was not found on PATH. Hermes Desktop normally includes uv.")
+    subprocess.run([uv, "pip", "install", "--python", str(python_path), package_spec], check=True)
+
+
 def patch_bridge(bridge: Path) -> bool:
     text = bridge.read_text(encoding="utf-8")
     changed = False
@@ -155,7 +179,7 @@ def write_cli_shim(hermes_home: Path) -> Path:
     manifest = plugin_dir / "plugin.yaml"
     init_file = plugin_dir / "__init__.py"
     manifest_text = f"""name: {PLUGIN_NAME}
-version: 0.2.0
+version: {PACKAGE_VERSION}
 description: Pulse Labs WhatsApp++ pip-installed Hermes plugin shim.
 author: Pulse Labs
 kind: standalone
@@ -241,6 +265,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hermes-home", type=Path, default=default_hermes_home())
     parser.add_argument("--bridge", type=Path, default=None, help="Path to scripts/whatsapp-bridge/bridge.js")
     parser.add_argument("--config", type=Path, default=None, help="Path to Hermes config.yaml")
+    parser.add_argument("--bootstrap", action="store_true", help="One-command install: install this package into Hermes Python, patch the bridge, write the shim, and enable the plugin")
+    parser.add_argument("--install-into-hermes", action="store_true", help="Run uv pip install into Hermes Desktop's Python before configuring the plugin")
+    parser.add_argument("--hermes-python", type=Path, default=None, help="Path to the Python executable that runs Hermes Desktop")
+    parser.add_argument("--package-spec", default=DEFAULT_PACKAGE_SPEC, help="Package spec to install when using --bootstrap or --install-into-hermes")
     parser.add_argument("--enable", action="store_true", help="Add whatsapp-plusplus to plugins.enabled")
     parser.add_argument("--no-patch", action="store_true", help="Only enable/write shim; do not patch bridge.js")
     parser.add_argument("--no-shim", action="store_true", help="Do not write the user-plugin CLI visibility shim")
@@ -248,6 +276,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     hermes_home = args.hermes_home.expanduser().resolve()
+    if args.bootstrap:
+        args.install_into_hermes = True
+        args.enable = True
+
+    if args.install_into_hermes:
+        hermes_python = args.hermes_python or default_hermes_python(hermes_home)
+        install_into_hermes_python(hermes_python, args.package_spec)
+        print(f"Installed package into Hermes Python: {hermes_python}")
+
     bridge = args.bridge or (hermes_home / "hermes-agent" / "scripts" / "whatsapp-bridge" / "bridge.js")
     config = args.config or default_config_path(hermes_home)
 
