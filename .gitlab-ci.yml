@@ -54,7 +54,7 @@ publish-testpypi:
   environment:
     name: testpypi
   id_tokens:
-    PYPI_ID_TOKEN:
+    TESTPYPI_ID_TOKEN:
       aud: testpypi
   script:
     - uv publish --publish-url https://test.pypi.org/legacy/
